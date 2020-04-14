@@ -39,7 +39,7 @@ def polar(afile, re, *args, **kwargs):
     return data
 
 
-def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=200, n=None):
+def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=3000, n=None):
     """run xfoil to generate polar file
 
     Parameters
