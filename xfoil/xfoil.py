@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import subprocess as sp
+from threading import Timer
 import re
 import pdb
 import sys
@@ -32,11 +33,12 @@ def polar(afile, re, *args, **kwargs):
     dict
     airfoil polar
     """
-    calc_polar(afile, re, SAVEPATH, CPSAVEPH, *args,**kwargs)
-    data = read_polar(SAVEPATH)
-    data = read_cpx(CPSAVEPH, data)
-    #delete_polar(SAVEPATH)
-    return data
+    if calc_polar(afile, re, SAVEPATH, CPSAVEPH, *args,**kwargs):
+        data = read_polar(SAVEPATH)
+        data = read_cpx(CPSAVEPH, data)
+        #delete_polar(SAVEPATH)
+        return data
+    return None
 
 
 def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=3000, n=None):
@@ -61,54 +63,60 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
 
 
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=None, stderr=None)
+    timer = Timer(60, pxfoil.kill)
+    try:
+        timer.start()
+        def write2xfoil(string):
+            if(sys.version_info > (3,0)):
+                string = string.encode('ascii')
+            pxfoil.stdin.write(string)
 
-    def write2xfoil(string):
-        if(sys.version_info > (3,0)):
-            string = string.encode('ascii')
+        if(afile.isdigit()):
+            write2xfoil('NACA ' + afile + '\n')
+        else:
+            write2xfoil('LOAD ' + afile + '\n')
 
-        pxfoil.stdin.write(string)
+            if(refine):
+                write2xfoil('GDES\n')
+                write2xfoil('CADD\n')
+                write2xfoil('\n')
+                write2xfoil('\n')
+                write2xfoil('\n')
+                write2xfoil('X\n ')
+                write2xfoil('\n')
+                write2xfoil('PANE\n')
 
-    if(afile.isdigit()):
-        write2xfoil('NACA ' + afile + '\n')
-    else:
-        write2xfoil('LOAD ' + afile + '\n')
-
-        if(refine):
-            write2xfoil('GDES\n')
-            write2xfoil('CADD\n')
+        write2xfoil('OPER\n')
+        if n != None:
+            write2xfoil('VPAR\n')
+            write2xfoil('N ' + str(n) + '\n')
             write2xfoil('\n')
-            write2xfoil('\n')
-            write2xfoil('\n')
-            write2xfoil('X\n ')
-            write2xfoil('\n')
-            write2xfoil('PANE\n')
-
-    write2xfoil('OPER\n')
-    if n != None:
-        write2xfoil('VPAR\n')
-        write2xfoil('N ' + str(n) + '\n')
+        write2xfoil('ITER ' + str(max_iter) + '\n')
+        write2xfoil('VISC\n')
+        write2xfoil(str(re) + '\n')
+        write2xfoil('PACC\n')
         write2xfoil('\n')
-    write2xfoil('ITER ' + str(max_iter) + '\n')
-    write2xfoil('VISC\n')
-    write2xfoil(str(re) + '\n')
-    write2xfoil('PACC\n')
-    write2xfoil('\n')
-    write2xfoil('\n')
-    # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
-    # write2xfoil('\n')
-    for alfa in alfaseq:
-        print(str(alfa))
-        write2xfoil('A ' + str(alfa) + '\n')
+        write2xfoil('\n')
+        # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
+        # write2xfoil('\n')
+        for alfa in alfaseq:
+            print(str(alfa))
+            write2xfoil('A ' + str(alfa) + '\n')
 
-    write2xfoil('PWRT 1\n')
-    write2xfoil(polarfile + '\n')
-    write2xfoil('\n')
-    # needs to be included in the for loop for aoa
-    write2xfoil('CPWR ' + cpfile + '\n')
+        write2xfoil('PWRT 1\n')
+        write2xfoil(polarfile + '\n')
+        write2xfoil('\n')
+        # needs to be included in the for loop for aoa
+        write2xfoil('CPWR ' + cpfile + '\n')
 
-    write2xfoil('\n')
+        write2xfoil('\n')
 
-    pxfoil.communicate(str('quit').encode('ascii'))
+        pxfoil.communicate(str('quit').encode('ascii'))
+        return True
+    finally:
+        timer.cancel()
+        return False
+
 
 
 def read_polar(infile):
@@ -204,6 +212,7 @@ if __name__ == "__main__":
     sample_num = 0
     for elem in digits:
         data = polar(elem, 2E6, [0, 1])
-        np.save(DATAPATH + "%04d" % sample_num, data)
-        sample_num += 1
+        if data != None:
+            np.save(DATAPATH + "%04d" % sample_num, data)
+            sample_num += 1
     print('done') # this is never printed…
