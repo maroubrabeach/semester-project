@@ -34,6 +34,7 @@ def polar(afile, re, *args, **kwargs):
     airfoil polar
     """
     if calc_polar(afile, re, SAVEPATH, CPSAVEPH, *args,**kwargs):
+        print("Computed polar. reading it now..")
         data = read_polar(SAVEPATH)
         data = read_cpx(CPSAVEPH, data)
         #delete_polar(SAVEPATH)
@@ -61,9 +62,10 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
     """
 
 
-
-    pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=None, stderr=None)
+    FNULL = open(os.devnull, 'w')
+    pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
     timer = Timer(60, pxfoil.kill)
+    is_done = False
     try:
         timer.start()
         def write2xfoil(string):
@@ -100,7 +102,6 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
         # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
         # write2xfoil('\n')
         for alfa in alfaseq:
-            print(str(alfa))
             write2xfoil('A ' + str(alfa) + '\n')
 
         write2xfoil('PWRT 1\n')
@@ -112,10 +113,10 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
         write2xfoil('\n')
 
         pxfoil.communicate(str('quit').encode('ascii'))
-        return True
+        is_done = True
     finally:
         timer.cancel()
-        return False
+        return is_done
 
 
 
