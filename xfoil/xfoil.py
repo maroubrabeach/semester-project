@@ -12,9 +12,10 @@ from operator import add
 import random
 
 XFOILBIN = './bin/xfoil'
-SAVEPATH = './save/polar.txt'
-CPSAVEPH = './save/cpx.txt'
-DATAPATH = './data/sample_'
+POLARPATH = './save/polar.txt'
+CPPATH = './save/cpx.txt'
+COORDPATH = './save/coordinates.txt'
+DATAPATH = './data/naca_'
 
 def polar(afile, re, *args, **kwargs):
     """calculate airfoil polar and load results
@@ -33,16 +34,15 @@ def polar(afile, re, *args, **kwargs):
     dict
     airfoil polar
     """
-    if calc_polar(afile, re, SAVEPATH, CPSAVEPH, *args,**kwargs):
-        print("Computed polar. reading it now..")
-        data = read_polar(SAVEPATH)
-        data = read_cpx(CPSAVEPH, data)
-        #delete_polar(SAVEPATH)
+    if calc_polar(afile, re, POLARPATH, CPPATH, COORDPATH, *args,**kwargs):
+        print("Computed polar. Reading it now...")
+        data = read(POLARPATH, CPPATH, COORDPATH)
+        #delete_polar(POLARPATH)
         return data
     return None
 
 
-def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=3000, n=None):
+def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_iter=1000, n=None):
     """run xfoil to generate polar file
 
     Parameters
@@ -64,7 +64,7 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
 
     FNULL = open(os.devnull, 'w')
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
-    timer = Timer(60, pxfoil.kill)
+    timer = Timer(10, pxfoil.kill)
     is_done = False
     try:
         timer.start()
@@ -84,7 +84,7 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
                 write2xfoil('\n')
                 write2xfoil('\n')
                 write2xfoil('\n')
-                write2xfoil('X\n ')
+                write2xfoil('X\n')
                 write2xfoil('\n')
                 write2xfoil('PANE\n')
 
@@ -101,17 +101,14 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
         write2xfoil('\n')
         # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
         # write2xfoil('\n')
-        for alfa in alfaseq:
-            write2xfoil('A ' + str(alfa) + '\n')
-
-        write2xfoil('PWRT 1\n')
+        #for alfa in alfaseq:
+        write2xfoil('Alfa ' + str(alfa) + '\n')
+        write2xfoil('PWRT\n')
         write2xfoil(polarfile + '\n')
         write2xfoil('\n')
-        # needs to be included in the for loop for aoa
         write2xfoil('CPWR ' + cpfile + '\n')
-
         write2xfoil('\n')
-
+        write2xfoil('SAVE ' + coordfile + '\n')
         pxfoil.communicate(str('quit').encode('ascii'))
         is_done = True
     finally:
@@ -120,7 +117,7 @@ def calc_polar(afile, re, polarfile, cpfile, alfaseq=[], refine=False, max_iter=
 
 
 
-def read_polar(infile):
+def read(polarfile, cpfile, coordfile):
     """read xfoil polar results from file
 
     Parameters
@@ -134,17 +131,16 @@ def read_polar(infile):
 
     regex = re.compile('(?:\s*([+-]?\d*.\d*))')
 
-    with open(infile) as f:
+    with open(polarfile) as f:
         lines = f.readlines()
 
-        a           = []
-        cl          = []
-        cd          = []
-        cdp         = []
-        cm          = []
+        a   = []
+        cl  = []
+        cd  = []
+        cdp = []
+        cm  = []
         # xtr_top     = []
         # xtr_bottom  = []
-
 
         for line in lines[12:]:
             linedata = regex.findall(line)
@@ -159,40 +155,31 @@ def read_polar(infile):
         data = {'a': np.array(a), 'cl': np.array(cl) , 'cd': np.array(cd), 'cdp': np.array(cdp),
              'cm': np.array(cm)}
 
-        return data
-
-
-def read_cpx(infile, data):
-    """read xfoil pressure coefficient results from file
-
-    Parameters
-    ----------
-    infile: string path to Cp file
-
-    Returns
-    -------
-    data: adds Cp results to current data dictionary
-    """
-
-    regex = re.compile('(?:\s*([+-]?\d*.\d*))')
-
-    with open(infile) as f:
+    with open(cpfile) as f:
         lines = f.readlines()
 
-        x           = []
-        cp          = []
+        cp  = []
 
+        for line in lines[1:]:
+            linedata = regex.findall(line)
+            if 'N' not in linedata[1]:
+                cp.append(float(linedata[1]))
+
+        data['cp'] = np.array(cp)
+
+    with open(coordfile) as f:
+        lines = f.readlines()
+
+        x   = []
+        y   = []
 
         for line in lines[1:]:
             linedata = regex.findall(line)
             x.append(float(linedata[0]))
-            # to avoid the error: "could not convert string to float: 'N'" when
-            # no convergence is reached and Cp = 'NaN'
-            if 'N' not in linedata[1]:
-                cp.append(float(linedata[1]))
+            y.append(float(linedata[1]))
 
         data['x'] = np.array(x)
-        data['cp'] = np.array(cp)
+        data['y'] = np.array(y)
 
         return data
 
@@ -209,11 +196,15 @@ if __name__ == "__main__":
     digits = list(map("".join, list(itertools.product(['0','1','2','3','4','5','6','7','8','9'], repeat=4))))
     # remove airfoils with 0 thickness
     digits = [elem for elem in digits if not elem.endswith('00')]
-    random.shuffle(digits)
+    #random.shuffle(digits)
     sample_num = 0
-    for elem in digits:
-        data = polar(elem, 2E6, [0, 1])
-        if data != None:
-            np.save(DATAPATH + "%04d" % sample_num, data)
-            sample_num += 1
-    print('done') # this is never printed…
+    #for elem in digits:
+    data = polar('1313', 2E6, 0)
+    if data != None and data['a'].size > 0:
+        #np.save(DATAPATH + "%04d" % sample_num, data)
+        #np.save(DATAPATH + elem, data)
+        #sample_num += 1
+        f = open(DATAPATH + '1313' + ".txt", "w")
+        f.write(str(data))
+        f.close()
+    print('*** Over ***')
