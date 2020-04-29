@@ -10,12 +10,27 @@ import sys
 import itertools
 from operator import add
 import random
+import signal
+from contextlib import contextmanager
 
 XFOILBIN = './bin/xfoil'
 POLARPATH = './save/polar.txt'
 CPPATH = './save/cpx.txt'
 COORDPATH = './save/coordinates.txt'
-DATAPATH = './data/naca_'
+DATAPATH = './data/NACA_'
+
+class TimeoutException(Exception): pass
+
+@contextmanager
+def time_limit(seconds):
+    def signal_handler(signum, frame):
+        raise TimeoutException('Timed out')
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
 
 def polar(afile, re, *args, **kwargs):
     """calculate airfoil polar and load results
@@ -61,58 +76,64 @@ def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_
         boundary layer parameter
     """
 
-
     FNULL = open(os.devnull, 'w')
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
-    timer = Timer(10, pxfoil.kill)
+    # timer = Timer(10, pxfoil.kill)
     is_done = False
     try:
-        timer.start()
-        def write2xfoil(string):
-            if(sys.version_info > (3,0)):
-                string = string.encode('ascii')
-            pxfoil.stdin.write(string)
+        with time_limit(10):
+        # timer.start()
+            pxfoil.kill()
+            def write2xfoil(string):
+                if(sys.version_info > (3,0)):
+                    string = string.encode('ascii')
+                pxfoil.stdin.write(string)
 
-        if(afile.isdigit()):
-            write2xfoil('NACA ' + afile + '\n')
-        else:
-            write2xfoil('LOAD ' + afile + '\n')
+            if(afile.isdigit()):
+                write2xfoil('NACA ' + afile + '\n')
+            else:
+                write2xfoil('LOAD ' + afile + '\n')
 
-            if(refine):
-                write2xfoil('GDES\n')
-                write2xfoil('CADD\n')
-                write2xfoil('\n')
-                write2xfoil('\n')
-                write2xfoil('\n')
-                write2xfoil('X\n')
-                write2xfoil('\n')
-                write2xfoil('PANE\n')
+                if(refine):
+                    write2xfoil('GDES\n')
+                    write2xfoil('CADD\n')
+                    write2xfoil('\n')
+                    write2xfoil('\n')
+                    write2xfoil('\n')
+                    write2xfoil('X\n')
+                    write2xfoil('\n')
+                    write2xfoil('PANE\n')
 
-        write2xfoil('OPER\n')
-        if n != None:
-            write2xfoil('VPAR\n')
-            write2xfoil('N ' + str(n) + '\n')
+            write2xfoil('OPER\n')
+            if n != None:
+                write2xfoil('VPAR\n')
+                write2xfoil('N ' + str(n) + '\n')
+                write2xfoil('\n')
+            write2xfoil('ITER ' + str(max_iter) + '\n')
+            write2xfoil('VISC\n')
+            write2xfoil(str(re) + '\n')
+            write2xfoil('PACC\n')
             write2xfoil('\n')
-        write2xfoil('ITER ' + str(max_iter) + '\n')
-        write2xfoil('VISC\n')
-        write2xfoil(str(re) + '\n')
-        write2xfoil('PACC\n')
-        write2xfoil('\n')
-        write2xfoil('\n')
-        # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
-        # write2xfoil('\n')
-        #for alfa in alfaseq:
-        write2xfoil('Alfa ' + str(alfa) + '\n')
-        write2xfoil('PWRT\n')
-        write2xfoil(polarfile + '\n')
-        write2xfoil('\n')
-        write2xfoil('CPWR ' + cpfile + '\n')
-        write2xfoil('\n')
-        write2xfoil('SAVE ' + coordfile + '\n')
-        pxfoil.communicate(str('quit').encode('ascii'))
-        is_done = True
+            write2xfoil('\n')
+            # write2xfoil('ASeq ' + str(af) + ' ' + str(al) + ' ' + str(ainc) + '\n')
+            # write2xfoil('\n')
+            #for alfa in alfaseq:
+            write2xfoil('Alfa ' + str(alfa) + '\n')
+
+            write2xfoil('PWRT\n')
+            write2xfoil(polarfile + '\n')
+            write2xfoil('\n')
+            write2xfoil('CPWR ' + cpfile + '\n')
+            write2xfoil('\n')
+            write2xfoil('SAVE ' + coordfile + '\n')
+            pxfoil.communicate(str('quit').encode('ascii'))
+            is_done = True
+    except TimeoutException as e:
+        # pxfoil.kill
+        print('Timed outexcept')
     finally:
-        timer.cancel()
+        # timer.cancel()
+        print(is_done)
         return is_done
 
 
@@ -129,8 +150,6 @@ def read(polarfile, cpfile, coordfile):
     data: airfoil polar splitted up into dictionary
     """
 
-    regex = re.compile('(?:\s*([+-]?\d*.\d*))')
-
     with open(polarfile) as f:
         lines = f.readlines()
 
@@ -143,12 +162,13 @@ def read(polarfile, cpfile, coordfile):
         # xtr_bottom  = []
 
         for line in lines[12:]:
-            linedata = regex.findall(line)
-            a.append(float(linedata[0]))
-            cl.append(float(linedata[1]))
-            cd.append(float(linedata[2]))
-            cdp.append(float(linedata[3]))
-            cm.append(float(linedata[4]))
+            split = line.split()
+            # if split[0].size > 0
+            a.append(float(split[0]))
+            cl.append(float(split[1]))
+            cd.append(float(split[2]))
+            cdp.append(float(split[3]))
+            cm.append(float(split[4]))
             # xtr_top.append(float(linedata[5]))
             # xtr_bottom.append(float(linedata[6]))
 
@@ -161,9 +181,8 @@ def read(polarfile, cpfile, coordfile):
         cp  = []
 
         for line in lines[1:]:
-            linedata = regex.findall(line)
-            if 'N' not in linedata[1]:
-                cp.append(float(linedata[1]))
+            split = line.split()
+            cp.append(float(split[1]))
 
         data['cp'] = np.array(cp)
 
@@ -174,9 +193,9 @@ def read(polarfile, cpfile, coordfile):
         y   = []
 
         for line in lines[1:]:
-            linedata = regex.findall(line)
-            x.append(float(linedata[0]))
-            y.append(float(linedata[1]))
+            split = line.split()
+            x.append(float(split[0]))
+            y.append(float(split[1]))
 
         data['x'] = np.array(x)
         data['y'] = np.array(y)
@@ -198,13 +217,13 @@ if __name__ == "__main__":
     digits = [elem for elem in digits if not elem.endswith('00')]
     #random.shuffle(digits)
     sample_num = 0
-    #for elem in digits:
-    data = polar('1313', 2E6, 0)
+    # for elem in digits:
+    data = polar('0001', 2E6, 0)
     if data != None and data['a'].size > 0:
-        #np.save(DATAPATH + "%04d" % sample_num, data)
-        #np.save(DATAPATH + elem, data)
-        #sample_num += 1
-        f = open(DATAPATH + '1313' + ".txt", "w")
+        np.save(DATAPATH + '0001', data)
+        # np.save(DATAPATH + "%04d" % sample_num, data)
+        # sample_num += 1
+        f = open(DATAPATH + '0001' + ".txt", "w")
         f.write(str(data))
         f.close()
     print('*** Over ***')
