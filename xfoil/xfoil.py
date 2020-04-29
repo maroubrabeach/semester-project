@@ -64,7 +64,7 @@ def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_
 
     FNULL = open(os.devnull, 'w')
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
-    timer = Timer(10, pxfoil.kill)
+    timer = Timer(10, pxfoil.kill())
     is_done = False
     try:
         timer.start()
