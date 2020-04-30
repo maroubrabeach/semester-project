@@ -218,10 +218,10 @@ if __name__ == "__main__":
     for elem in digits:
         data = polar(elem, 2E6, 0)
         if data != None and data['a'].size > 0:
-            # np.save(DATAPATH + elem, data)
+            np.save(DATAPATH + elem, data)
             # np.save(DATAPATH + "%04d" % sample_num, data)
             # sample_num += 1
-            f = open(DATAPATH + elem + ".txt", "w")
-            f.write(str(data))
-            f.close()
+            # f = open(DATAPATH + elem + ".txt", "w")
+            # f.write(str(data))
+            # f.close()
     print('Over')
