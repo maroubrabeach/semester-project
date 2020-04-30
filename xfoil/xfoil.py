@@ -78,11 +78,9 @@ def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_
 
     FNULL = open(os.devnull, 'w')
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
-    # timer = Timer(10, pxfoil.kill())
     is_done = False
     try:
         with time_limit(30):
-        # timer.start()
             def write2xfoil(string):
                 if(sys.version_info > (3,0)):
                     string = string.encode('ascii')
@@ -131,7 +129,6 @@ def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_
         pxfoil.kill()
         print('Timed out')
     finally:
-        # timer.cancel()
         return is_done
 
 
