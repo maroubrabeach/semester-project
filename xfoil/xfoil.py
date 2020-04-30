@@ -80,7 +80,7 @@ def calc_polar(afile, re, polarfile, cpfile, coordfile, alfa, refine=False, max_
     pxfoil = sp.Popen([XFOILBIN], stdin=sp.PIPE, stdout=FNULL, stderr=None)
     is_done = False
     try:
-        with time_limit(30):
+        with time_limit(15):
             def write2xfoil(string):
                 if(sys.version_info > (3,0)):
                     string = string.encode('ascii')
