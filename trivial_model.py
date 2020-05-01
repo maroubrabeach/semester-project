@@ -28,14 +28,14 @@ class XfoilDataset(Dataset):
     def __getitem__(self, idx):
         data = np.load(self.data[idx], allow_pickle=True)
         # input, outputs
-        return torch.tensor(data.item()["x"]).float(), torch.tensor(data.item()["cl"]).float()
+        return torch.tensor(data.item()["y"]).float(), torch.tensor(data.item()["cl"]).float()
 
 
 # https://medium.com/biaslyai/pytorch-introduction-to-neural-network-feedforward-neural-network-model-e7231cff47cb
 class DumbRegressor(torch.nn.Module):
     def __init__(self):
         super(DumbRegressor, self).__init__()
-        self.fc = nn.Linear(160,2)
+        self.fc = nn.Linear(160, 2)
     def forward(self, x):
         output = self.fc(x)
         return output
