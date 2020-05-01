@@ -28,16 +28,16 @@ class XfoilDataset(Dataset):
     def __getitem__(self, idx):
         data = np.load(self.data[idx], allow_pickle=True)
         # input, outputs
-        return torch.tensor(data.item()["y"]).float(), torch.tensor(data.item()["cl"]).float()
+        return torch.tensor(data.item()["x"]).float(), torch.tensor(data.item()["y"]).float(), torch.tensor(data.item()["cl"]).float()
 
 
-# https://medium.com/biaslyai/pytorch-introduction-to-neural-network-feedforward-neural-network-model-e7231cff47cb
+# https://medium.com/biaslyai/pytorch-linear-and-logistic-regression-models-5c5f0da2cb9#c317
 class DumbRegressor(torch.nn.Module):
     def __init__(self):
         super(DumbRegressor, self).__init__()
-        self.fc = nn.Linear(160, 2)
+        self.fc = nn.Linear(160, 1) # how do we regress from (x, y) couples? Maybe nn.Linear not adapted?
     def forward(self, x):
-        output = self.fc(x)
+        output = self.fc(x, y) # ...? :)
         return output
 
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     xfoil_data = XfoilDataset()
     xfoil_loader = data_utils.DataLoader(
         xfoil_data,
-        batch_size=2,
+        batch_size=5,
         shuffle=False,
         num_workers=1,
         drop_last=False,
@@ -66,12 +66,12 @@ if __name__ == "__main__":
         print("epoch {}...".format(epoch))
         model.train()
 
-        for input, output in xfoil_loader:
+        for inputx, inputy, output in xfoil_loader:
             # clean gradients that might be stored in parameters
             optimizer.zero_grad()
             # run forward pass
             prediction = model(input)
-            # compute loss fuction
+            # compute loss function
             loss = torch.mean((prediction-output)**2)
             print("loss {}...".format(loss.detach().numpy()))
             # compute backward pass
