@@ -19,6 +19,10 @@ CPPATH = './save/cpx.txt'
 COORDPATH = './save/coordinates.txt'
 DATAPATH = './data/NACA_'
 
+camber = range(10)
+distance = range(10)
+thickness = range(100)
+
 class TimeoutException(Exception): pass
 
 @contextmanager
@@ -138,12 +142,18 @@ def read(polarfile, cpfile, coordfile):
 
     Parameters
     ----------
-    infile: string path to polar file
+    polarfile: string path to polar file
+    cpfile: string path to cp file
+    coordfile: string path to airfoil coordinates file
+    c: max camber as percentage of the chord
+    d: distance of maximum camber from the airfoil leading edge in tenths of the chord
+    t: maximum thickness of the airfoil as percent of the chord
 
     Returns
     -------
-    data: airfoil polar splitted up into dictionary
+    data: inputs splitted up into dictionary
     """
+    data = {'c': np.array(c), 'd': np.array(d) , 't': np.array(t)}
 
     with open(polarfile) as f:
         lines = f.readlines()
@@ -166,8 +176,11 @@ def read(polarfile, cpfile, coordfile):
             # xtr_top.append(float(linedata[5]))
             # xtr_bottom.append(float(linedata[6]))
 
-        data = {'a': np.array(a), 'cl': np.array(cl) , 'cd': np.array(cd), 'cdp': np.array(cdp),
-             'cm': np.array(cm)}
+        data['a'] = np.array(a)
+        data['cl'] = np.array(cl)
+        data['cd'] = np.array(cd)
+        data['cdp'] = np.array(cdp)
+        data['cm'] = np.array(cm)
 
     if data['a'].size > 0:
         with open(cpfile) as f:
@@ -207,18 +220,25 @@ if __name__ == "__main__":
     # test making sure everythins is allright
     # NACA profile, Reynolds, (aoa start, aoa end, aoa increment)
     # create a list of all possible four-digit NACA airfoils
-    digits = list(map("".join, list(itertools.product(['0','1','2','3','4','5','6','7','8','9'], repeat=4))))
+    # digits = list(map("".join, list(itertools.product(['0','1','2','3','4','5','6','7','8','9'], repeat=4))))
+    for c in camber:
+        for d in distance:
+            for t in thickness:
+                NACA = str(c) + str(d) + str("%02d" % t)
+                data = polar(NACA, 2E6, 0)
+                if data != None and data['a'].size > 0:
+                    np.save(DATAPATH + NACA, data)
     # remove airfoils with 0 thickness
-    digits = [elem for elem in digits if not elem.endswith('00')]
-    #random.shuffle(digits)
-    sample_num = 0
-    for elem in digits:
-        data = polar(elem, 2E6, 0)
-        if data != None and data['a'].size > 0:
-            np.save(DATAPATH + elem, data)
-            # np.save(DATAPATH + "%04d" % sample_num, data)
-            # sample_num += 1
-            # f = open(DATAPATH + elem + ".txt", "w")
-            # f.write(str(data))
-            # f.close()
+    # digits = [elem for elem in digits if not elem.endswith('00')]
+    # random.shuffle(digits)
+    # sample_num = 0
+    # for elem in digits:
+    #     data = polar(elem, 2E6, 0)
+    #     if data != None and data['a'].size > 0:
+    #         np.save(DATAPATH + elem, data)
+    #         np.save(DATAPATH + "%04d" % sample_num, data)
+    #         sample_num += 1
+    #         f = open(DATAPATH + elem + ".txt", "w")
+    #         f.write(str(data))
+    #         f.close()
     print('Over')
