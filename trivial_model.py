@@ -11,7 +11,8 @@ import logging
 DATA_PATH = "./xfoil/data"
 
 
-# REGRESS C_L from (x,y)
+# Regress C_L, C_D, C_M from (x, y)
+
 class XfoilDataset(Dataset):
     """xfoil dataset."""
 
@@ -28,16 +29,18 @@ class XfoilDataset(Dataset):
     def __getitem__(self, idx):
         data = np.load(self.data[idx], allow_pickle=True)
         # input, outputs
-        return torch.tensor(data.item()["x"]).float(), torch.tensor(data.item()["y"]).float(), torch.tensor(data.item()["cl"]).float()
+        return torch.tensor(np.vstack((data.item()["x"], data.item()["y"]))).float(), torch.tensor(data.item()["cl"]).float(), torch.tensor(data.item()["cd"]).float(), torch.tensor(data.item()["cm"]).float()
 
 
 # https://medium.com/biaslyai/pytorch-linear-and-logistic-regression-models-5c5f0da2cb9#c317
-class DumbRegressor(torch.nn.Module):
+class DumbRegressor(nn.Module):
+
     def __init__(self):
         super(DumbRegressor, self).__init__()
-        self.fc = nn.Linear(160, 1) # how do we regress from (x, y) couples? Maybe nn.Linear not adapted?
+        self.fc = nn.Linear(2*160, 3)
+
     def forward(self, x):
-        output = self.fc(x, y) # ...? :)
+        output = self.fc(x)
         return output
 
 
@@ -47,12 +50,11 @@ if __name__ == "__main__":
     xfoil_data = XfoilDataset()
     xfoil_loader = data_utils.DataLoader(
         xfoil_data,
-        batch_size=5,
+        batch_size=2,
         shuffle=False,
         num_workers=1,
         drop_last=False,
     )
-
     # initialize network/model
     model = DumbRegressor()
 
@@ -66,7 +68,7 @@ if __name__ == "__main__":
         print("epoch {}...".format(epoch))
         model.train()
 
-        for inputx, inputy, output in xfoil_loader:
+        for input, cl, cd, cm in xfoil_loader:
             # clean gradients that might be stored in parameters
             optimizer.zero_grad()
             # run forward pass
