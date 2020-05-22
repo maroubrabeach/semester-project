@@ -153,7 +153,8 @@ def read(polarfile, cpfile, coordfile):
     -------
     data: inputs splitted up into dictionary
     """
-    data = {'c': np.array(c), 'd': np.array(d) , 't': np.array(t)}
+
+    data = {'c': np.array([c]), 'd': np.array([d]), 't': np.array([t])}
 
     with open(polarfile) as f:
         lines = f.readlines()
@@ -227,6 +228,9 @@ if __name__ == "__main__":
                 NACA = str(c) + str(d) + str("%02d" % t)
                 data = polar(NACA, 2E6, 0)
                 if data != None and data['a'].size > 0:
+                    # f = open(DATAPATH + NACA + ".txt", "w")
+                    # f.write(str(data))
+                    # f.close()
                     np.save(DATAPATH + NACA, data)
     # remove airfoils with 0 thickness
     # digits = [elem for elem in digits if not elem.endswith('00')]
