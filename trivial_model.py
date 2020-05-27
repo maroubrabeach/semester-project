@@ -8,6 +8,7 @@ from os import listdir
 from os.path import isfile, join
 import pdb
 import logging
+from livelossplot import PlotLosses
 
 DATA_PATH = "./xfoil/data"
 
@@ -86,7 +87,7 @@ if __name__ == "__main__":
 
     # initialize data
     xfoil_trainData = XfoilTrainDataset()
-    xfoil_loader = data_utils.DataLoader(
+    xfoil_trainloader = data_utils.DataLoader(
         xfoil_trainData,
         batch_size=2,
         shuffle=False,
@@ -94,6 +95,18 @@ if __name__ == "__main__":
         drop_last=False,
     )
     xfoil_testData = XfoilTestDataset()
+    xfoiltestloader = data_utils.DataLoader(
+        xfoil_testData,
+        batch_size=2,
+        shuffle=False,
+        num_workers=1,
+        drop_last=False,
+    )
+    dataloaders = {
+    "train": xfoil_trainloader,
+    "test": xfoiltestloader
+    }
+
     # initialize network/model
     model = nn.Sequential(
           nn.Linear(3, 10),
@@ -105,35 +118,52 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr = 0.01)
     n_epochs = 10
     # how many NumEpochs
+    liveloss = PlotLosses()
 
-    for epoch in range(0, n_epochs):
-
+    for epoch in range(n_epochs):
+        logs = {}
         print("epoch {}...".format(epoch))
-        model.train()
 
-        for input, output in xfoil_loader:
-            # clean gradients that might be stored in parameters
-            optimizer.zero_grad()
-            # run forward pass
-            prediction = model(input)
-            # compute loss function
-            loss = torch.mean((prediction-output)**2)
-            print("loss {}...".format(loss.detach().numpy()))
-            # compute backward pass
-            loss.backward()
-            # finally update parameters
-            optimizer.step()
+        for phase in ['train', 'test']:
+            if phase == 'train':
+                model.train()
+            else:
+                model.eval()
 
+            running_loss = 0.0
+            running_corrects = 0
 
-            print(input.shape, prediction.shape, output.shape)
+            for input, output in dataloaders[phase]:
+                # run forward pass
+                prediction = model(input)
+                # compute loss function
+                loss = torch.mean((prediction-output)**2)
+                print("loss {}...".format(loss.detach().numpy()))
 
-    model.eval()
-    for input, output in xfoil_testData:
-        # run forward pass
-        prediction = model(input)
-        # compute loss function
-        loss = torch.mean((prediction-output)**2)
-        print("loss {}...".format(loss.detach().numpy()))
+                if phase == 'train':
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                # https://github.com/stared/livelossplot/blob/master/examples/pytorch.ipynb
+                _, preds = torch.max(output, 1)
+                running_loss += loss.detach() * input.size(0)
+                running_corrects += torch.sum(preds == output.data)
+
+                # print(input.shape, prediction.shape, output.shape)
+
+            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_acc = running_corrects.float() / len(dataloaders[phase].dataset)
+
+            prefix = ''
+            if phase == 'test':
+                prefix = 'test_'
+
+            logs[prefix + 'loss'] = epoch_loss.item()
+            logs[prefix + 'accuracy'] = epoch_acc.item()
+
+        liveloss.update(logs)
+        liveloss.send()
 
     pdb.set_trace()
     print("yolo")
