@@ -9,7 +9,10 @@ from os.path import isfile, join
 import pdb
 import logging
 from livelossplot import PlotLosses
+<<<<<<< HEAD
 import matplotlib.pyplot as plt
+=======
+>>>>>>> 06627a132ded8d1360a6ee818faa8c3c744e418f
 
 DATA_PATH = "./xfoil/data"
 
@@ -99,7 +102,12 @@ if __name__ == "__main__":
         xfoil_testData,
         batch_size=2,
         shuffle=False,
+<<<<<<< HEAD
         # num_workers=1,
+=======
+        num_workers=1,
+        drop_last=False,
+>>>>>>> 06627a132ded8d1360a6ee818faa8c3c744e418f
     )
     dataloaders = {
     "train": xfoil_trainloader,
@@ -132,7 +140,11 @@ if __name__ == "__main__":
             running_loss = 0.0
             running_corrects = 0
 
+<<<<<<< HEAD
             for input, output in dataloaders[phase]: # enumerate(dataloaders[phase]) https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets/50544887#50544887
+=======
+            for input, output in dataloaders[phase]:
+>>>>>>> 06627a132ded8d1360a6ee818faa8c3c744e418f
                 # run forward pass
                 prediction = model(input)
                 # compute loss function
