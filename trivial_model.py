@@ -1,24 +1,25 @@
 import numpy as np
 import torch
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import torch.utils.data as data_utils
-import torch.nn as nn
-# import torch.nn.functional as F
 from os import listdir
 from os.path import isfile, join
 import pdb
-import logging
-from livelossplot import PlotLosses
-# import matplotlib.pyplot as plt
+import time
+import matplotlib.pyplot as plt
 
 DATA_PATH = "./xfoil/data"
-
 
 # Regress C_L, C_D from camber, distance, thickness
 
 dir = listdir(DATA_PATH)
 trainFrac = 0.8
 trainSize = int(round(trainFrac*len(dir), 0))
+
+# Number of epochs to train for
+num_epochs = 10
+
 
 class XfoilTrainDataset(Dataset):
     """Xfoil train dataset."""
@@ -40,6 +41,7 @@ class XfoilTrainDataset(Dataset):
         output = torch.cat((torch.tensor(dataTrain.item()["cl"]).float(), torch.tensor(dataTrain.item()["cd"]).float()))
         return input, output
 
+
 class XfoilTestDataset(Dataset):
     """Xfoil test dataset."""
 
@@ -60,28 +62,68 @@ class XfoilTestDataset(Dataset):
         output = torch.cat((torch.tensor(dataTest.item()["cl"]).float(), torch.tensor(dataTest.item()["cd"]).float()))
         return input, output
 
-# https://medium.com/biaslyai/pytorch-linear-and-logistic-regression-models-5c5f0da2cb9#c317
-# class DumbRegressor(nn.Module):
-#
-#     def __init__(self):
-#         super(DumbRegressor, self).__init__()
-#         self.fc = nn.Linear(2*160, 3)
-#
-#     def forward(self, x):
-#         output = self.fc(x)
-#         return output
 
-# class FC(nn.Module):
-#     """docstring for FC."""
-#
-#     def __init__(self):
-#         super(FC, self).__init__()
-#         self._fc1 = nn.Linear(3, 10)
-#         self._fc2 = nn.Linear(10, 2)
-#
-#     def forward(self, x)
-#         x = F.relu(self._fc1(x))
-#         return self._fc2(x)
+# https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html#final-thoughts-and-where-to-go-next
+def train_model(model, dataloaders, optimizer, num_epochs):
+    since = time.time()
+
+    test_loss_history = []
+    train_loss_history = []
+
+    for epoch in range(1, num_epochs+1):
+        print('Epoch {}/{}'.format(epoch, num_epochs))
+        print('-' * 10)
+
+        # Each epoch has a training and validation phase
+        for phase in ['train', 'test']:
+            if phase == 'train':
+                model.train()  # Set model to training mode
+            else:
+                model.eval()   # Set model to evaluate mode
+
+            running_loss = 0.0
+
+            # Iterate over data
+            for input, output in dataloaders[phase]:
+                input = input.to(device)
+                output = output.to(device)
+
+                # Zero the parameter gradients
+                optimizer.zero_grad()
+
+                # Forward
+                # Track history if only in train
+                with torch.set_grad_enabled(phase == 'train'):
+                    # Get model outputs and calculate loss
+                    prediction = model(input)
+                    loss = torch.mean((prediction-output)**2)
+
+                    # _, preds = torch.max(prediction, 1)
+
+                    # Backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
+                # Statistics
+                running_loss += loss.item() * input.size(0)
+
+            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+
+            print('{} loss: {:.4f}'.format(phase, epoch_loss))
+
+            if phase == 'train':
+                train_loss_history.append(epoch_loss)
+            else:
+                test_loss_history.append(epoch_loss)
+
+        print()
+
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    return train_loss_history, test_loss_history
+
 
 
 if __name__ == "__main__":
@@ -101,7 +143,7 @@ if __name__ == "__main__":
         shuffle=False,
         # num_workers=1,
     )
-    dataloaders = {
+    dataloaders_dict = {
     "train": xfoil_trainloader,
     "test": xfoiltestloader
     }
@@ -113,56 +155,31 @@ if __name__ == "__main__":
           nn.Linear(10, 2),
         )
 
+    # Detect if we have a GPU available
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # Send the model to GPU
+    model = model.to(device)
+
+    print("Parameters to learn:")
+    for name, param in model.named_parameters():
+        if param.requires_grad == True:
+            print("\t",name)
+
     # what are the parameters of the model we want to optimize
     optimizer = torch.optim.Adam(model.parameters(), lr = 0.01)
-    n_epochs = 10
-    # how many NumEpochs
-    liveloss = PlotLosses()
 
-    for epoch in range(n_epochs):
-        logs = {}
-        print("epoch {}...".format(epoch))
+    # Train and evaluate
+    train_loss_history, test_loss_history = train_model(model, dataloaders_dict, optimizer, num_epochs=num_epochs)
 
-        for phase in ['train', 'test']:
-            if phase == 'train':
-                model.train()
-            else:
-                model.eval()
+    plt.title("Loss vs. Number of Training Epochs")
+    plt.xlabel("Training Epochs")
+    plt.ylabel("Loss")
+    plt.plot(range(1, num_epochs+1), train_loss_history, label="Train loss")
+    plt.plot(range(1, num_epochs+1), test_loss_history, label="Test loss")
+    plt.xticks(np.arange(1, num_epochs+1, 1.0))
+    plt.legend()
+    plt.show()
 
-            running_loss = 0.0
-            running_corrects = 0
-
-            for input, output in dataloaders[phase]: # enumerate(dataloaders[phase]) https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets/50544887#50544887
-                # run forward pass
-                prediction = model(input)
-                # compute loss function
-                loss = torch.mean((prediction-output)**2)
-                print("loss {}...".format(loss.detach().numpy()))
-
-                if phase == 'train':
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-
-                # https://github.com/stared/livelossplot/blob/master/examples/pytorch.ipynb
-                _, preds = torch.max(output, 1)
-                running_loss += loss.detach() * input.size(0)
-                running_corrects += torch.sum(preds == output.data)
-
-                # print(input.shape, prediction.shape, output.shape)
-
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            epoch_acc = running_corrects.float() / len(dataloaders[phase].dataset)
-
-            prefix = ''
-            if phase == 'test':
-                prefix = 'test_'
-
-            logs[prefix + 'loss'] = epoch_loss.item()
-            logs[prefix + 'accuracy'] = epoch_acc.item()
-
-        liveloss.update(logs)
-        liveloss.send()
 
     pdb.set_trace()
-    print("yolo")
