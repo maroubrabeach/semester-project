@@ -37,7 +37,9 @@ class XfoilTrainDataset(Dataset):
 
     def __getitem__(self, idx):
         dataTrain = np.load(self.data[idx], allow_pickle=True)
-        input = torch.cat((torch.tensor(dataTrain.item()["c"]).float(), torch.tensor(dataTrain.item()["d"]).float(), torch.tensor(dataTrain.item()["t"]).float()))
+        input_high_res = np.vstack((dataTrain.item()["x"], dataTrain.item()["y"]))
+        input_low_res = input_high_res[:,::4] # resize to 40 points
+        input = torch.tensor(input_low_res).float()
         output = torch.cat((torch.tensor(dataTrain.item()["cl"]).float(), torch.tensor(dataTrain.item()["cd"]).float()))
         return input, output
 
@@ -58,7 +60,9 @@ class XfoilTestDataset(Dataset):
 
     def __getitem__(self, idx):
         dataTest = np.load(self.data[idx], allow_pickle=True)
-        input = torch.cat((torch.tensor(dataTest.item()["c"]).float(), torch.tensor(dataTest.item()["d"]).float(), torch.tensor(dataTest.item()["t"]).float()))
+        input_high_res = np.vstack((dataTest.item()["x"], dataTest.item()["y"]))
+        input_low_res = input_high_res[:,::4] # resize to 40 points
+        input = torch.tensor(input_low_res).float()
         output = torch.cat((torch.tensor(dataTest.item()["cl"]).float(), torch.tensor(dataTest.item()["cd"]).float()))
         return input, output
 
@@ -150,11 +154,10 @@ if __name__ == "__main__":
 
     # initialize network/model
     model = nn.Sequential(
-          nn.Linear(3, 10),
+          nn.Linear(2*40, 10),
           nn.ReLU(),
           nn.Linear(10, 2),
         )
-
     # Detect if we have a GPU available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -177,7 +180,6 @@ if __name__ == "__main__":
     plt.ylabel("Loss")
     plt.plot(range(1, num_epochs+1), train_loss_history, label="Train loss")
     plt.plot(range(1, num_epochs+1), test_loss_history, label="Test loss")
-    plt.ylim((0,0.1))
     plt.xticks(np.arange(1, num_epochs+1, 1.0))
     plt.legend()
     plt.show()
