@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 
 DATA_PATH = "./xfoil/data"
 
-# Regress C_L, C_D from camber, distance, thickness
+# Regress C_L, C_D from x, y coordinates
 
 dir = listdir(DATA_PATH)
-trainFrac = 0.3
+trainFrac = 0.9
 trainSize = int(round(trainFrac*len(dir), 0))
 
 # Number of epochs to train for
@@ -37,9 +37,10 @@ class XfoilTrainDataset(Dataset):
 
     def __getitem__(self, idx):
         dataTrain = np.load(self.data[idx], allow_pickle=True)
-        input_high_res = np.vstack((dataTrain.item()["x"], dataTrain.item()["y"]))
-        input_low_res = input_high_res[:,::4] # resize to 40 points
-        input = torch.tensor(input_low_res).float()
+        # input_high_res = np.vstack((dataTrain.item()["x"], dataTrain.item()["y"]))
+        # input_low_res = input_high_res[:,::4] # resize to 40 points
+        # input = torch.reshape(torch.tensor(input_low_res).float(), (1,-1))
+        input = torch.cat((torch.tensor(dataTrain.item()["x"]).float(), torch.tensor(dataTrain.item()["y"]).float()))
         output = torch.cat((torch.tensor(dataTrain.item()["cl"]).float(), torch.tensor(dataTrain.item()["cd"]).float()))
         return input, output
 
@@ -60,9 +61,10 @@ class XfoilTestDataset(Dataset):
 
     def __getitem__(self, idx):
         dataTest = np.load(self.data[idx], allow_pickle=True)
-        input_high_res = np.vstack((dataTest.item()["x"], dataTest.item()["y"]))
-        input_low_res = input_high_res[:,::4] # resize to 40 points
-        input = torch.tensor(input_low_res).float()
+        # input_high_res = np.vstack((dataTest.item()["x"], dataTest.item()["y"]))
+        # input_low_res = input_high_res[:,::4] # resize to 40 points
+        # input = torch.reshape(torch.tensor(input_low_res).float(), (1,-1))
+        input = torch.cat((torch.tensor(dataTest.item()["x"]).float(), torch.tensor(dataTest.item()["y"]).float()))
         output = torch.cat((torch.tensor(dataTest.item()["cl"]).float(), torch.tensor(dataTest.item()["cd"]).float()))
         return input, output
 
@@ -154,7 +156,7 @@ if __name__ == "__main__":
 
     # initialize network/model
     model = nn.Sequential(
-          nn.Linear(2*40, 10),
+          nn.Linear(2*160, 10),
           nn.ReLU(),
           nn.Linear(10, 2),
         )
